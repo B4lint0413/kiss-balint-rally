@@ -1,0 +1,539 @@
+openapi: "3.1.0"
+info:
+  title: Rally API
+  version: 1.0.0
+
+servers:
+  - url: http://backend.vm1.test
+    description: VM1 backend
+  - url: http://backend.vm2.test
+    description: VM2 backend
+  - url: http://backend.vm3.test
+    description: VM3 backend
+  - url: http://backend.vm4.test
+    description: VM4 backend
+  - url: http://backend.vm5.test
+    description: VM5 backend
+
+paths:
+  /api/register:
+    post:
+      tags:
+        - Auth
+      summary: Regisztráció
+      description: |
+        - A `store` metódus validálja az adatokat, majd adon vissza egy JSON-t, ahol a `data`-n belül legyen egy `message`, tartalma: "XY sikeresen regisztrálva". XY helyére a `username` kerüljön.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                password_confirmation:
+                  type: string
+              required:
+                - name
+                - email
+                - password
+                - password_confirmation
+      responses:
+        '200':
+          description: Sikeres regisztráció
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                data:
+                  message: "XY sikeresen regisztrálva"
+        '400':
+          description: Hiba a regisztráció során
+
+  /api/login:
+    post:
+      tags:
+        - Auth
+      summary: Bejelentkezés
+      description: |
+        - Az authenticate metódus validálja a kapott adatokat, majd authentikálja a felhasználót.
+        - Sikereses authentikáció esetén adjon vissza egy JSON-t, ahol a `data`-n belül legyen egy token, ami tartalmazza a sikeresen bejelentkeztetett felhasználó tokenjét.
+        - Sikertelen authentikáció esetén adjon vissza egy JSON-t, ahol a `data`-n belül legyen egy message, tartalma: "Sikertelen bejelentkezés"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Sikeres bejelentkezés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+              example:
+                data:
+                  token: "user-token-example"
+        '401':
+          description: Sikertelen bejelentkezés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                data:
+                  message: "Sikertelen bejelentkezés"
+
+  /api/teams:
+    get:
+      tags:
+        - Teams
+      summary: Csapatok listájának lekérése
+      description: |
+        Visszadja a csapatok adatait
+      responses:
+        '200':
+          description: Csapatok listája
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Team'
+              example:
+                data:
+                  - name: "Toyota Gazoo Racing"
+                    country: "Japán"
+                    race:
+                      id: 1
+                      name: "Monte Carlo Rally"
+                      location: "Monaco"
+                      date: "2025-01-23"
+                      group: "Group A"
+
+    post:
+      security:
+        - bearerAuth: []
+      tags:
+        - Teams
+      summary: Új csapat létrehozása
+      description: |
+        - JSON-ként kapott adatokat validálja, majd eltárolja az adatbázisba. Visszaadja a csapat adatait az alábbi minta szerint
+        - Ellenőrizze, hogy a kérést küldő felhasználó admin-e a létrehozott `Gate` szabály segítségével
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                country:
+                  type: string
+                race_id:
+                  type: integer
+              required:
+                - name
+                - country
+                - race_id
+      responses:
+        '201':
+          description: Sikeres csapat létrehozás
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Team'
+              example:
+                data:
+                  id: 15
+                  name: "Toyota Gazoo Racing"
+                  country: "Japán"
+                  race:
+                    id: 1
+                    name: "Monte Carlo Rally"
+                    location: "Monaco"
+                    date: "2025-01-23"
+                    group: "Group A"
+        '400':
+          description: Hiba a csapat létrehozása során
+
+  /api/teams/{team}:
+    get:
+      tags:
+        - Teams
+      summary: Csapat adatai az azonosító alapján
+      description: |
+        Visszaadja a csapat adatait az azonosítója alapján keresve
+      parameters:
+        - name: team
+          in: path
+          required: true
+          description: A csapat azonosítója
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Csapat adatai
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Team'
+              example:
+                data:
+                  id: 1
+                  name: "Toyota Gazoo Racing"
+                  country: "Japán"
+                  race:
+                    id: 1
+                    name: "Monte Carlo Rally"
+                    location: "Monaco"
+                    date: "2025-01-23"
+                    group: "Group A"
+        '404':
+          description: A csapat nem található
+
+    delete:
+      security:
+          - bearerAuth: []
+      tags:
+        - Teams
+      summary: Csapat törlése
+      description: |
+        - Törölje ki a megfelelő mezőt az adatbázisból az id alapján.
+        - Sikeres törlés esetén 204 “No Content” kóddal térjen vissza.
+        - Amennyiben nem található meg az elem 404-es kóddal térjen vissza.
+      parameters:
+        - name: team
+          in: path
+          required: true
+          description: A csapat azonosítója
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Sikeres törlés
+        '404':
+          description: A csapat nem található
+
+  /api/races:
+    get:
+      tags:
+        - Races
+      summary: Versenyek listájának lekérése
+      description: |
+        Visszadja a versenyek adatait
+      responses:
+        '200':
+          description: Versenyek listája
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Race'
+              example:
+                data:
+                  - id: 1
+                    name: "Monte Carlo Rally"
+                    location: "Monaco"
+                    date: "2025-01-23"
+                    group: "Group A"
+                    teams:
+                      - id: 1
+                        name: "Toyota Gazoo Racing"
+                        country: "Japán"
+                      - id: 2
+                        name: "Hyundai Motorsport"
+                        country: "Dél-Korea"
+                      - id: 13
+                        name: "Mini Rally Team"
+                        country: "Egyesült Királyság"
+                  - id: 2
+                    name: "Sweden Rally"
+                    location: "Svédország"
+                    date: "2025-02-13"
+                    group: "Group B"
+                    teams:
+                      - id: 3
+                        name: "M-Sport Ford"
+                        country: "Egyesült Királyásg"
+                      - id: 4
+                        name: "Toksport WRT"
+                        country: "Németország"
+                      - id: 14
+                        name: "Opel Rally Team"
+                        country: "Németország"
+
+    post:
+      security:
+          - bearerAuth: []
+      tags:
+        - Races
+      summary: Új verseny létrehozása
+      description: |
+        - JSON-ként kapott adatokat validálja, majd eltárolja az adatbázisba. Visszaadja a verseny adatait az alábbi minta szerint-
+        - Ellenőrizze, hogy a kérést küldő felhasználó admin-e a létrehozott `Gate` szabály segítségével
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                location:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                group:
+                  type: string
+              required:
+                - name
+                - location
+                - date
+                - group
+      responses:
+        '201':
+          description: Sikeres verseny létrehozás
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Race'
+              example:
+                data:
+                  id: 17
+                  name: "Monte Carlo Rally"
+                  location: "Monaco"
+                  date: "2025-01-23"
+                  group: "Group A"
+                  teams: []
+        '400':
+          description: Hiba a verseny létrehozása során
+
+  /api/races/{race}:
+    get:
+      tags:
+        - Races
+      summary: Verseny adatai az azonosító alapján
+      description: |
+        Visszaadja a verseny adatait az azonosítója alapján keresve
+      parameters:
+        - name: race
+          in: path
+          required: true
+          description: A verseny azonosítója
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Verseny adatai
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Race'
+              example:
+                data:
+                  - id: 1
+                    name: "Monte Carlo Rally"
+                    location: "Monaco"
+                    date: "2025-01-23"
+                    group: "Group A"
+                    teams:
+                      - id: 1
+                        name: "Toyota Gazoo Racing"
+                        country: "Japán"
+                      - id: 2
+                        name: "Hyundai Motorsport"
+                        country: "Dél-Korea"
+                      - id: 13
+                        name: "Mini Rally Team"
+                        country: "Egyesült Királyság"
+        '404':
+          description: A verseny nem található
+
+    put:
+      security:
+          - bearerAuth: []
+      tags:
+        - Races
+      summary: Verseny frissítése
+      description: |
+        - JSON-ként kapott adatokat validálja, majd módosítja az azonosítója alapján. Visszaadja a verseny adatait az alábbi minta szerint
+        - Ellenőrizze, hogy a kérést küldő felhasználó admin-e a létrehozott `Gate` szabály segítségével
+      parameters:
+        - name: race
+          in: path
+          required: true
+          description: A verseny azonosítója
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                location:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                group:
+                  type: string
+              required:
+                - name
+                - location
+                - date
+                - group
+      responses:
+        '200':
+          description: Sikeres frissítés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Race'
+              example:
+                data:
+                  id: 17
+                  name: "Finland Rally"
+                  location: "Finnország"
+                  date: "2025-06-23"
+                  group: "Group B"
+                  teams:
+                    - id: 10
+                      name: "Peugeot Sport"
+                      country: "Franciaország"
+        '404':
+          description: A verseny nem található
+
+    delete:
+      security:
+          - bearerAuth: []
+      tags:
+        - Races
+      summary: Verseny törlése
+      description: |
+        - Törölje ki a megfelelő mezőt az adatbázisból az id alapján.
+        - Sikeres törlés esetén 204 “No Content” kóddal térjen vissza.
+        - Amennyiben nem található meg az elem 404-es kóddal térjen vissza.
+      parameters:
+        - name: race
+          in: path
+          required: true
+          description: A verseny azonosítója
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Sikeres törlés
+        '404':
+          description: A verseny nem található
+
+components:
+  schemas:
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        country:
+          type: string
+        race:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            location:
+              type: string
+            date:
+              type: string
+              format: date
+            group:
+              type: string
+
+    Race:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        date:
+          type: string
+          format: date
+        group:
+          type: string
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
